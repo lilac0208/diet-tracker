@@ -63,12 +63,12 @@ export default function Dashboard() {
                                 🍽️ 飲食控制系統
                             </h1>
                             <p className="text-sm text-gray-600 dark:text-gray-300">
-                                歡迎回來，{profile.name}！
+                                歡迎回來，{profile?.name || '使用者'}！
                             </p>
                         </div>
                         <div className="text-right">
-                            <p className="text-sm text-gray-600 dark:text-gray-300">BMR: {profile.bmr} kcal</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">TDEE: {profile.tdee} kcal</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">BMR: {profile?.bmr ?? '-'} kcal</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-300">TDEE: {profile?.tdee ?? '-'} kcal</p>
                         </div>
                     </div>
                 </div>
