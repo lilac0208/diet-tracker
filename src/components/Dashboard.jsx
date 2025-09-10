@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDietStore } from '../stores/useDietStore'
 import UserProfileForm from './UserProfileForm'
 import GoalSetter from './GoalSetter'
@@ -99,26 +99,85 @@ export default function Dashboard() {
                 </div>
             </nav>
 
-            {/* Bottom navigation (mobile) */}
+            {/* Bottom navigation (mobile, swipeable) */}
             <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-gray-900/90 border-t dark:border-gray-800 backdrop-blur">
-                <div className="max-w-7xl mx-auto px-2">
-                    <div className="grid grid-cols-5">
-                        {tabs.filter(t => ['overview','meals','library','history','settings'].includes(t.id)).map(tab => (
-                            <NavLink
-                                key={tab.id}
-                                to={`/${tab.id}`}
-                                className={({ isActive }) =>
-                                    `flex flex-col items-center justify-center py-2 text-xs ${
+                {(() => {
+                  const pageSize = 5
+                  const mobileTabs = tabs // 顯示所有功能，分頁呈現
+                  const pages = Array.from({ length: Math.ceil(mobileTabs.length / pageSize) }, (_, i) =>
+                    mobileTabs.slice(i * pageSize, (i + 1) * pageSize)
+                  )
+
+                  const [page, setPage] = useState(0)
+                  const startXRef = useRef(0)
+                  const deltaXRef = useRef(0)
+                  const containerRef = useRef(null)
+
+                  const onTouchStart = e => {
+                    const x = e.touches?.[0]?.clientX ?? 0
+                    startXRef.current = x
+                    deltaXRef.current = 0
+                  }
+                  const onTouchMove = e => {
+                    const x = e.touches?.[0]?.clientX ?? 0
+                    deltaXRef.current = x - startXRef.current
+                  }
+                  const onTouchEnd = () => {
+                    const threshold = 50
+                    if (deltaXRef.current <= -threshold && page < pages.length - 1) setPage(p => p + 1)
+                    if (deltaXRef.current >= threshold && page > 0) setPage(p => p - 1)
+                  }
+
+                  return (
+                    <div className="max-w-7xl mx-auto px-2 select-none">
+                      <div
+                        ref={containerRef}
+                        className="overflow-hidden"
+                        onTouchStart={onTouchStart}
+                        onTouchMove={onTouchMove}
+                        onTouchEnd={onTouchEnd}
+                      >
+                        <div
+                          className="flex transition-transform duration-300 ease-out"
+                          style={{ transform: `translateX(-${page * 100}%)`, width: `${pages.length * 100}%` }}
+                        >
+                          {pages.map((pageTabs, idx) => (
+                            <div key={idx} className="w-full shrink-0">
+                              <div className="grid grid-cols-5">
+                                {pageTabs.map(tab => (
+                                  <NavLink
+                                    key={tab.id}
+                                    to={`/${tab.id}`}
+                                    className={({ isActive }) =>
+                                      `flex flex-col items-center justify-center py-2 text-xs ${
                                         isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
-                                    }`
-                                }
-                            >
-                                <span className="text-lg leading-none">{tab.icon}</span>
-                                <span className="mt-0.5">{tab.label}</span>
-                            </NavLink>
+                                      }`
+                                    }
+                                  >
+                                    <span className="text-lg leading-none">{tab.icon}</span>
+                                    <span className="mt-0.5">{tab.label}</span>
+                                  </NavLink>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-center gap-1.5 py-1">
+                        {pages.map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setPage(i)}
+                            className={
+                              `h-1.5 w-1.5 rounded-full ${i === page ? 'bg-blue-600 dark:bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'}`
+                            }
+                            aria-label={`Go to page ${i + 1}`}
+                          />
                         ))}
+                      </div>
                     </div>
-                </div>
+                  )
+                })()}
             </nav>
 
             {/* Main Content */}
