@@ -139,11 +139,11 @@ export default function Dashboard() {
                       >
                         <div
                           className="flex transition-transform duration-300 ease-out"
-                          style={{ transform: `translateX(-${page * 100}%)`, width: `${pages.length * 100}%` }}
+                          style={{ transform: `translateX(-${page * 100}%)` }}
                         >
                           {pages.map((pageTabs, idx) => (
-                            <div key={idx} className="w-full shrink-0">
-                              <div className="grid grid-cols-5">
+                            <div key={idx} className="min-w-full shrink-0">
+                              <div className="grid grid-cols-5 place-items-center">
                                 {pageTabs.map(tab => (
                                   <NavLink
                                     key={tab.id}
@@ -163,7 +163,7 @@ export default function Dashboard() {
                           ))}
                         </div>
                       </div>
-                      <div className="flex items-center justify-center gap-1.5 py-1">
+                      <div className="flex items-center justify-center gap-1.5 py-1 pb-[calc(env(safe-area-inset-bottom,0px)+4px)]">
                         {pages.map((_, i) => (
                           <button
                             key={i}
