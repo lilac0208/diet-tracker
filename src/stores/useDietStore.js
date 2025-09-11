@@ -61,12 +61,6 @@ export const useDietStore = create(persist((set, get) => ({
     set({ mealsByDate: { ...get().mealsByDate, [key]: [...list, meal] } })
     get().schedulePush()
   },
-  // 依指定日期新增餐點（YYYY-MM-DD）
-  addMealForDate: (date, meal) => {
-    const key = date || todayKey()
-    const list = get().mealsByDate[key] || []
-    set({ mealsByDate: { ...get().mealsByDate, [key]: [...list, meal] } })
-  },
 
   // 體重追蹤
   weightHistory: [],
@@ -159,7 +153,8 @@ export const useDietStore = create(persist((set, get) => ({
   },
 
   // Supabase 設定與同步（簡易 JSON Blob）
-  cloud: { enabled: false, userId: null, lastSyncAt: null, strategy: 'local_wins', auto: true, syncing: false, error: null },
+  // 預設啟用雲端備份（需在設定中填入 userId 與 .env）
+  cloud: { enabled: true, userId: null, lastSyncAt: null, strategy: 'local_wins', auto: true, syncing: false, error: null },
   setCloud: (patch) => set({ cloud: { ...get().cloud, ...patch } }),
   schedulePush: () => {
     const cloud = get().cloud

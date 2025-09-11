@@ -9,7 +9,6 @@ export default function History() {
   
   const mealsByDate = useDietStore(s => s.mealsByDate)
   const goals = useDietStore(s => s.goals)
-  const getMealsByDate = useDietStore(s => s.getMealsByDate)
   const removeMeal = useDietStore(s => s.removeMeal)
   const addMealForDate = useDietStore(s => s.addMealForDate)
 
@@ -36,8 +35,9 @@ export default function History() {
     setPreview(null)
   }
 
-  // 取得選定日期的餐點
-  const selectedMeals = useMemo(() => getMealsByDate(selectedDate), [selectedDate, getMealsByDate])
+  // 取得選定日期的餐點：直接訂閱 store 的指定 key，並在組件端處理預設值
+  const selectedMealsRaw = useDietStore(s => s.mealsByDate[selectedDate])
+  const selectedMeals = selectedMealsRaw ?? []
 
   // 計算當日總計
   const dailyTotals = useMemo(() => {
