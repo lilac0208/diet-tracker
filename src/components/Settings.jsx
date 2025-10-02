@@ -11,6 +11,7 @@ export default function Settings() {
   const setCloud = useDietStore(s => s.setCloud)
   const pushToCloud = useDietStore(s => s.pushToCloud)
   const pullFromCloud = useDietStore(s => s.pullFromCloud)
+  const testCloud = useDietStore(s => s.testCloud)
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', !!darkMode)
@@ -70,6 +71,12 @@ export default function Settings() {
     }
   }
 
+  const handleTest = async () => {
+    const res = await testCloud()
+    if (res.ok) alert('連線測試成功！')
+    else alert('連線測試失敗：' + (res.error || '未知錯誤'))
+  }
+
 
   return (
     <div className="max-w-xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow space-y-6">
@@ -107,22 +114,13 @@ export default function Settings() {
               <div className="flex items-end gap-2">
                 <button onClick={handlePush} className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white">上傳</button>
                 <button onClick={handlePull} className="px-4 py-2 rounded-md bg-sky-600 hover:bg-sky-700 text-white">下載</button>
+                <button onClick={handleTest} className="px-4 py-2 rounded-md bg-gray-600 hover:bg-gray-700 text-white">測試連線</button>
               </div>
             </div>
 
             {/* 同步設定 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <label>
-                <span className="block text-sm text-gray-700 dark:text-gray-300">衝突策略</span>
-                <select
-                  value={cloud?.strategy || 'local_wins'}
-                  onChange={(e) => setCloud({ strategy: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-gray-100"
-                >
-                  <option value="local_wins">本機優先（local_wins）</option>
-                  <option value="remote_wins">雲端優先（remote_wins）</option>
-                </select>
-              </label>
+              {/* 衝突策略已移除：固定雲端優先 */}
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -154,6 +152,9 @@ export default function Settings() {
                   <span>錯誤訊息：{cloud.error}</span>
                   <button onClick={handlePush} className="px-2 py-1 rounded bg-red-600 text-white">重試上傳</button>
                 </div>
+              )}
+              {cloud?.nextRetryAt && (
+                <div>下一次自動重試：{new Date(cloud.nextRetryAt).toLocaleString()}（已嘗試 {cloud.retryAttempts || 0} 次）</div>
               )}
             </div>
           </div>

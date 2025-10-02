@@ -9,7 +9,7 @@ export default function StatisticsPage() {
   const [chartType, setChartType] = useState('line')
   
   const goals = useDietStore(s => s.goals)
-  const mealsByDate = useDietStore(s => s.mealsByDate)
+  const getDateRangeStats = useDietStore(s => s.getDateRangeStats)
   const profile = useDietStore(s => s.profile)
 
   // 計算日期範圍
@@ -35,32 +35,19 @@ export default function StatisticsPage() {
   // 取得統計數據
   const statsData = useMemo(() => {
     const { start, end } = dateRange
-    const stats = []
-    
-    for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
-      const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
-      const dateKey = `${y}-${m}-${dd}`
-      const meals = mealsByDate[dateKey] || []
-      const totals = meals.reduce((acc, m) => ({
-        protein: acc.protein + Number(m.protein || 0),
-        fat: acc.fat + Number(m.fat || 0),
-        carb: acc.carb + Number(m.carb || 0),
-        kcal: acc.kcal + Number(m.kcal || 0),
-      }), { protein: 0, fat: 0, carb: 0, kcal: 0 })
-      
-      stats.push({ 
-        date: d.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' }),
-        ...totals,
-        // 計算達成率
-        proteinPct: goals.protein ? Math.round((totals.protein / goals.protein) * 100) : 0,
-        fatPct: goals.fat ? Math.round((totals.fat / goals.fat) * 100) : 0,
-        carbPct: goals.carb ? Math.round((totals.carb / goals.carb) * 100) : 0,
-        kcalPct: goals.kcal ? Math.round((totals.kcal / goals.kcal) * 100) : 0,
-      })
-    }
-    
-    return stats
-  }, [mealsByDate, dateRange, goals])
+    const raw = getDateRangeStats(start, end)
+    return raw.map((r) => ({
+      date: new Date(r.date).toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' }),
+      protein: r.protein,
+      fat: r.fat,
+      carb: r.carb,
+      kcal: r.kcal,
+      proteinPct: goals.protein ? Math.round((r.protein / goals.protein) * 100) : 0,
+      fatPct: goals.fat ? Math.round((r.fat / goals.fat) * 100) : 0,
+      carbPct: goals.carb ? Math.round((r.carb / goals.carb) * 100) : 0,
+      kcalPct: goals.kcal ? Math.round((r.kcal / goals.kcal) * 100) : 0,
+    }))
+  }, [dateRange, goals, getDateRangeStats])
 
   // 計算平均值
   const averages = useMemo(() => {

@@ -119,22 +119,32 @@ export default function TodayProgress() {
       {meals.length > 0 && (
         <div className="border-t dark:border-gray-700 pt-4">
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">今日餐點</h3>
-          <div className="space-y-2 max-h-32 overflow-y-auto">
+          <div className="space-y-3 max-h-48 overflow-y-auto">
             {[
               { key: 'breakfast', label: '早餐' },
               { key: 'lunch', label: '午餐' },
               { key: 'dinner', label: '晚餐' },
               { key: 'snack', label: '加餐' },
             ].filter(({ key }) => (groupedByType.countByType[key] || 0) > 0)
-              .map(({ key, label }) => (
-              <div key={key} className="flex justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-300">
-                  {label}
-                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({groupedByType.countByType[key]} 筆)</span>
-                </span>
-                <span className="text-gray-900 dark:text-gray-100">{Math.round(groupedByType.sumByType[key])} kcal</span>
-              </div>
-            ))}
+              .map(({ key, label }) => {
+                const items = meals.filter(m => (m.type || 'snack') === key)
+                return (
+                  <div key={key}>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-300">
+                        {label}
+                        <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({items.length} 筆)</span>
+                      </span>
+                      <span className="text-gray-900 dark:text-gray-100">{Math.round(groupedByType.sumByType[key])} kcal</span>
+                    </div>
+                    <ul className="mt-1 ml-4 list-disc text-xs text-gray-600 dark:text-gray-300 space-y-0.5">
+                      {items.map((m, i) => (
+                        <li key={i}>{m.name?.trim() || '未命名'} · {Math.round(Number(m.kcal || 0))} kcal</li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+            })}
           </div>
         </div>
       )}

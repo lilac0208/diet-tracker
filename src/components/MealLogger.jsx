@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 export default function MealLogger() {
   const addMeal = useDietStore(s => s.addMeal)
   const addMealForDate = useDietStore(s => s.addMealForDate)
+  const getMealsByDate = useDietStore(s => s.getMealsByDate)
   const mealLibrary = useDietStore(s => s.mealLibrary)
   const { register, handleSubmit, reset, setValue, watch } = useForm({ 
     defaultValues: { 
@@ -23,16 +24,44 @@ export default function MealLogger() {
   const selectedType = watch('type')
 
   const onSubmit = (data) => {
-    const kcal = macrosToKcal(data)
-    const mealPayload = { type: data.type, name: data.name?.trim() || '', protein: data.protein, fat: data.fat, carb: data.carb, kcal, photo: photoDataRef.current || null }
-    if (data.date) {
-      addMealForDate(data.date, mealPayload)
+    // 驗證與安全轉型
+    const p = Number(data.protein)
+    const f = Number(data.fat)
+    const c = Number(data.carb)
+    const name = data.name?.trim() || ''
+    const dateStr = (data.date || '').trim()
+    const dateOk = !dateStr || /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+    const numsOk = [p, f, c].every((v) => Number.isFinite(v) && v >= 0)
+    if (!numsOk || !dateOk) {
+      alert('請輸入有效的數值（>= 0）與正確日期格式 YYYY-MM-DD')
+      return
+    }
+    const kcal = macrosToKcal({ protein: p, fat: f, carb: c })
+    const mealPayload = { type: data.type, name, protein: p, fat: f, carb: c, kcal, photo: photoDataRef.current || null }
+    if (dateStr) {
+      addMealForDate(dateStr, mealPayload)
     } else {
       addMeal(mealPayload)
     }
-    reset({ type: data.type, name: '', protein: '', fat: '', carb: '', date: data.date })
+    reset({ type: data.type, name: '', protein: '', fat: '', carb: '', date: dateStr })
     setPreview(null)
     photoDataRef.current = null
+  }
+
+  // 複製昨天所有餐點到今天（本地時區）
+  const copyYesterdayToToday = () => {
+    const now = new Date()
+    const ty = now.getFullYear(); const tm = String(now.getMonth()+1).padStart(2,'0'); const td = String(now.getDate()).padStart(2,'0')
+    const todayKey = `${ty}-${tm}-${td}`
+    const yst = new Date(now)
+    yst.setDate(now.getDate() - 1)
+    const yy = yst.getFullYear(); const ym = String(yst.getMonth()+1).padStart(2,'0'); const yd = String(yst.getDate()).padStart(2,'0')
+    const yesterdayKey = `${yy}-${ym}-${yd}`
+    const list = getMealsByDate(yesterdayKey) || []
+    if (!list.length) { alert('昨天沒有餐點可複製'); return }
+    if (!confirm(`將 ${yesterdayKey} 的 ${list.length} 筆餐點複製到今天？`)) return
+    list.forEach((meal) => addMealForDate(todayKey, { ...meal }))
+    alert('已複製到今天')
   }
 
   const quickAddFromLibrary = (meal) => {
@@ -64,7 +93,16 @@ export default function MealLogger() {
 
   return (
     <div className="max-w-md mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow space-y-4">
-      <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">新增餐點</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">新增餐點</h2>
+        <button
+          type="button"
+          onClick={copyYesterdayToToday}
+          className="text-xs px-3 py-1 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+        >
+          複製昨天
+        </button>
+      </div>
       
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>

@@ -1,10 +1,10 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import { getSupabase } from '../utils/supabaseClient'
 import { calcBMR, calcTDEE } from '../utils/nutrition'
 
 // module-level timers for debounced push
 let pushTimer = null
+let retryTimer = null
 
 // Local-date key in YYYY-MM-DD using local timezone (avoid UTC boundary issues)
 const formatLocalDate = (date) => {
@@ -15,7 +15,7 @@ const formatLocalDate = (date) => {
 }
 const todayKey = () => formatLocalDate(new Date())
 
-export const useDietStore = create(persist((set, get) => ({
+export const useDietStore = create((set, get) => ({
   profile: null,
   setProfile: (p) => {
     set({ profile: p })
@@ -150,6 +150,20 @@ export const useDietStore = create(persist((set, get) => ({
     get().schedulePush()
   },
 
+  // 依日期重排餐點順序
+  reorderMeals: (date, fromIndex, toIndex) => {
+    const list = [...(get().mealsByDate[date] || [])]
+    if (fromIndex === toIndex) return
+    if (fromIndex < 0 || fromIndex >= list.length) return
+    if (toIndex < 0 || toIndex >= list.length) return
+    const [moved] = list.splice(fromIndex, 1)
+    list.splice(toIndex, 0, moved)
+    set({ mealsByDate: { ...get().mealsByDate, [date]: list } })
+    // 總計不變，無需重算，但仍保險觸發一次
+    get()._recalcDateTotals(date)
+    get().schedulePush()
+  },
+
   todayTotals: () => {
     const d = todayKey()
     return get().mealsTotalsByDate[d] || { protein: 0, fat: 0, carb: 0, kcal: 0 }
@@ -206,10 +220,17 @@ export const useDietStore = create(persist((set, get) => ({
     }
   },
 
-  // Supabase 設定與同步（簡易 JSON Blob）
-  // 預設啟用雲端備份（需在設定中填入 userId 與 .env）
-  cloud: { enabled: true, userId: null, lastSyncAt: null, strategy: 'local_wins', auto: true, syncing: false, error: null },
+  // Supabase 設定與同步（雲端優先）
+  // 僅雲端存取：移除衝突策略，pull 一律覆蓋本地
+  cloud: { enabled: true, userId: null, lastSyncAt: null, auto: true, syncing: false, error: null, retryAttempts: 0, nextRetryAt: null },
   setCloud: (patch) => set({ cloud: { ...get().cloud, ...patch } }),
+
+  // 正規化 Supabase/網路錯誤訊息
+  _normalizeCloudError: (e) => {
+    const msg = e?.message || String(e)
+    if (/Failed to fetch/i.test(msg)) return '無法連線 Supabase：請檢查 URL/Key/網路或 CORS 設定'
+    return msg
+  },
   schedulePush: () => {
     const cloud = get().cloud
     if (!cloud?.auto) return
@@ -234,10 +255,25 @@ export const useDietStore = create(persist((set, get) => ({
       .select('updated_at')
       .single()
     if (error) {
-      set({ cloud: { ...get().cloud, syncing: false, error: error.message } })
+      const message = get()._normalizeCloudError(error)
+      set({ cloud: { ...get().cloud, syncing: false, error: message } })
+      // 自動重試（最多 3 次，指數退避 5s, 10s, 20s）
+      clearTimeout(retryTimer)
+      const attempts = (get().cloud.retryAttempts || 0)
+      if (attempts < 3 && get().cloud.auto) {
+        const delay = Math.pow(2, attempts) * 5000
+        const next = new Date(Date.now() + delay).toISOString()
+        set({ cloud: { ...get().cloud, retryAttempts: attempts + 1, nextRetryAt: next } })
+        retryTimer = setTimeout(() => {
+          get().pushToCloud().catch((e2) => {
+            set({ cloud: { ...get().cloud, error: get()._normalizeCloudError(e2) } })
+          })
+        }, delay)
+      }
       throw error
     }
-    set({ cloud: { ...get().cloud, syncing: false, lastSyncAt: data?.updated_at || new Date().toISOString(), error: null } })
+    clearTimeout(retryTimer)
+    set({ cloud: { ...get().cloud, syncing: false, lastSyncAt: data?.updated_at || new Date().toISOString(), error: null, retryAttempts: 0, nextRetryAt: null } })
     return { ok: true }
   },
   pullFromCloud: async () => {
@@ -252,21 +288,33 @@ export const useDietStore = create(persist((set, get) => ({
       .eq('user_id', userId)
       .single()
     if (error) {
-      set({ cloud: { ...get().cloud, syncing: false, error: error.message } })
+      const message = get()._normalizeCloudError(error)
+      set({ cloud: { ...get().cloud, syncing: false, error: message } })
       throw error
     }
-    const strategy = get().cloud?.strategy || 'local_wins'
-    if (strategy === 'remote_wins') {
-      const res = get().importAll(data?.data)
-      if (!res.ok) {
-        set({ cloud: { ...get().cloud, syncing: false, error: res.error } })
-        throw new Error(res.error || '匯入失敗')
-      }
-    } else {
-      // local_wins: 什麼都不做；可擴充為比較 lastSyncAt 再決定
+    // 雲端優先：一律以遠端覆蓋本地
+    const res = get().importAll(data?.data)
+    if (!res.ok) {
+      set({ cloud: { ...get().cloud, syncing: false, error: res.error } })
+      throw new Error(res.error || '匯入失敗')
     }
     set({ cloud: { ...get().cloud, syncing: false, lastSyncAt: data?.updated_at || get().cloud.lastSyncAt, error: null } })
     return { ok: true }
+  },
+
+  // 測試雲端連線（讀取權限/網路）
+  testCloud: async () => {
+    const supabase = getSupabase()
+    if (!supabase) return { ok: false, error: '未設定 Supabase 環境變數' }
+    const { userId } = get().cloud || {}
+    if (!userId) return { ok: false, error: '請先在設定中填寫使用者 ID' }
+    try {
+      const { error } = await supabase.from('diet_backups').select('updated_at').eq('user_id', userId).limit(1)
+      if (error) return { ok: false, error: get()._normalizeCloudError(error) }
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: get()._normalizeCloudError(e) }
+    }
   },
 
   // 清除所有資料
@@ -281,6 +329,5 @@ export const useDietStore = create(persist((set, get) => ({
       weightHistory: [],
       mealsTotalsByDate: {},
     })
-    try { localStorage.removeItem('diet-tracker') } catch {}
   }
-}), { name: 'diet-tracker' }))
+}))

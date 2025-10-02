@@ -15,18 +15,20 @@ export default function WeightTracker() {
   const addWeightRecord = useDietStore(s => s.addWeightRecord)
 
   const handleAddWeight = () => {
-    if (newWeight && newDate) {
-      addWeightRecord({
-        date: newDate,
-        weight: parseFloat(newWeight)
-      })
-      setNewWeight('')
-      const now = new Date()
-      const y = now.getFullYear()
-      const m = String(now.getMonth() + 1).padStart(2, '0')
-      const d = String(now.getDate()).padStart(2, '0')
-      setNewDate(`${y}-${m}-${d}`)
+    const w = Number(newWeight)
+    const dateStr = (newDate || '').trim()
+    const ok = Number.isFinite(w) && w > 0 && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+    if (!ok) {
+      alert('請輸入正數體重，並確認日期為 YYYY-MM-DD')
+      return
     }
+    addWeightRecord({ date: dateStr, weight: w })
+    setNewWeight('')
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    setNewDate(`${y}-${m}-${d}`)
   }
 
   const chartData = useMemo(() => {

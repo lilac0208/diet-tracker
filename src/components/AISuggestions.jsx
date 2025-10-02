@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useDietStore } from '../stores/useDietStore'
+import { generateMealSuggestions } from '../utils/llmClient'
 
 function computeTotals(meals) {
   return meals.reduce((acc, m) => ({
@@ -27,11 +28,10 @@ export default function AISuggestions() {
     const dd = String(d.getDate()).padStart(2, '0')
     return `${y}-${m}-${dd}`
   }, [])
-  const mealsByDate = useDietStore(s => s.mealsByDate)
+  const meals = useDietStore(s => s.mealsByDate[todayKey] || [])
   const goals = useDietStore(s => s.goals)
   const mealLibrary = useDietStore(s => s.mealLibrary)
-  
-  const meals = useMemo(() => mealsByDate[todayKey] || [], [mealsByDate, todayKey])
+  const addMeal = useDietStore(s => s.addMeal)
 
   const totals = useMemo(() => computeTotals(meals), [meals])
   const remaining = useMemo(() => ({
@@ -69,9 +69,35 @@ export default function AISuggestions() {
 
   const hasGoals = (goals.protein || goals.fat || goals.carb || goals.kcal)
 
+  function addSuggested(meal, portion = 1) {
+    const scale = (v) => Math.round(Number(v || 0) * portion * 10) / 10
+    const payload = {
+      type: meal.type || 'snack',
+      name: `${meal.name || '未命名'} x${portion}`,
+      protein: scale(meal.protein),
+      fat: scale(meal.fat),
+      carb: scale(meal.carb),
+      kcal: Math.round((Number(meal.kcal || 0) * portion))
+    }
+    addMeal(payload)
+  }
+
+  async function handleAI() {
+    try {
+      const ai = await generateMealSuggestions({ remaining, candidates: suggestions })
+      return ai
+    } catch (e) {
+      alert('AI 產生建議失敗：' + (e?.message || String(e)))
+      return null
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow space-y-4">
-      <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">AI 建議（啟發式）</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">AI 建議</h2>
+        <button onClick={handleAI} className="px-3 py-1.5 text-sm rounded bg-purple-600 hover:bg-purple-700 text-white">AI 生成建議</button>
+      </div>
       {!hasGoals && (
         <p className="text-sm text-gray-600 dark:text-gray-300">尚未設定目標，請先於「目標設定」中設定每日目標。</p>
       )}
@@ -110,7 +136,11 @@ export default function AISuggestions() {
                 {suggestions.map((m) => (
                   <div key={m.id} className="p-3 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
                     <div className="font-medium text-gray-900 dark:text-gray-100">{m.name || '未命名'}</div>
-                    <div className="text-xs text-gray-600 dark:text-gray-300">P {m.protein}g · F {m.fat}g · C {m.carb}g · {m.kcal} kcal</div>
+                    <div className="text-xs text-gray-600 dark:text-gray-300 mb-2">P {m.protein}g · F {m.fat}g · C {m.carb}g · {m.kcal} kcal</div>
+                    <div className="flex gap-2">
+                      <button onClick={() => addSuggested(m, 1)} className="px-2 py-1 text-xs rounded bg-emerald-600 hover:bg-emerald-700 text-white">加入 1x</button>
+                      <button onClick={() => addSuggested(m, 0.5)} className="px-2 py-1 text-xs rounded bg-sky-600 hover:bg-sky-700 text-white">加入 0.5x</button>
+                    </div>
                   </div>
                 ))}
               </div>

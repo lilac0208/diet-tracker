@@ -14,10 +14,11 @@ export default function History() {
   const mealsByDate = useDietStore(s => s.mealsByDate)
   const goals = useDietStore(s => s.goals)
   const removeMeal = useDietStore(s => s.removeMeal)
+  const reorderMeals = useDietStore(s => s.reorderMeals)
   const addMealForDate = useDietStore(s => s.addMealForDate)
 
   const { register, handleSubmit, reset } = useForm({
-    defaultValues: { type: 'breakfast', protein: '', fat: '', carb: '' }
+    defaultValues: { type: 'breakfast', name: '', protein: '', fat: '', carb: '' }
   })
   const photoDataRef = useRef(null)
   const [preview, setPreview] = useState(null)
@@ -31,10 +32,20 @@ export default function History() {
   }
 
   const onQuickAdd = (data) => {
-    const kcal = macrosToKcal(data)
-    const payload = { type: data.type, protein: data.protein, fat: data.fat, carb: data.carb, kcal, photo: photoDataRef.current || null }
+    // 驗證與安全轉型
+    const p = Number(data.protein)
+    const f = Number(data.fat)
+    const c = Number(data.carb)
+    const numsOk = [p, f, c].every((v) => Number.isFinite(v) && v >= 0)
+    if (!numsOk) {
+      alert('請輸入有效的數值（>= 0）')
+      return
+    }
+    const kcal = macrosToKcal({ protein: p, fat: f, carb: c })
+    const name = (data.name || '').trim()
+    const payload = { type: data.type, name, protein: p, fat: f, carb: c, kcal, photo: photoDataRef.current || null }
     addMealForDate(selectedDate, payload)
-    reset({ type: data.type, protein: '', fat: '', carb: '' })
+    reset({ type: data.type, name: '', protein: '', fat: '', carb: '' })
     photoDataRef.current = null
     setPreview(null)
   }
@@ -88,7 +99,7 @@ export default function History() {
           </div>
 
           {/* 在此日期快速補登 */}
-          <form onSubmit={handleSubmit(onQuickAdd)} className="lg:col-span-2 grid grid-cols-1 md:grid-cols-5 gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <form onSubmit={handleSubmit(onQuickAdd)} className="lg:col-span-2 grid grid-cols-1 md:grid-cols-6 gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
             <div>
               <label className="block text-xs text-gray-600 dark:text-gray-300">餐別</label>
               <select {...register('type')} className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-gray-100">
@@ -97,6 +108,10 @@ export default function History() {
                 <option value="dinner">晚餐</option>
                 <option value="snack">加餐</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 dark:text-gray-300">名稱（可選）</label>
+              <input type="text" {...register('name')} className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-600 dark:text-gray-100" placeholder="例如：雞胸沙拉" />
             </div>
             <div>
               <label className="block text-xs text-gray-600 dark:text-gray-300">蛋白(g)</label>
@@ -166,12 +181,29 @@ export default function History() {
           ) : (
             <div className="space-y-3">
               {selectedMeals.map((meal, index) => (
-              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div
+                key={index}
+                className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                draggable
+                onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(index)) }}
+                onDragOver={(e) => { e.preventDefault() }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const from = Number(e.dataTransfer.getData('text/plain'))
+                  const to = index
+                  reorderMeals(selectedDate, from, to)
+                }}
+              >
                 <div className="flex-1">
                   <div className="flex items-center space-x-4">
                     <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
-                      {getMealTypeLabel(meal.type)}
+                      {meal.name?.trim() || getMealTypeLabel(meal.type)}
                     </span>
+                    {meal.name?.trim() && (
+                      <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full border border-gray-200 dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">
+                        {getMealTypeLabel(meal.type)}
+                      </span>
+                    )}
                     <div className="flex items-center space-x-3">
                       {meal.photo && (
                         <img src={meal.photo} alt="" className="h-10 w-10 rounded object-cover border dark:border-gray-600" />
