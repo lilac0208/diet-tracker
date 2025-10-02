@@ -20,7 +20,13 @@ function distance(a, b) {
 }
 
 export default function AISuggestions() {
-  const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const todayKey = useMemo(() => {
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${dd}`
+  }, [])
   const mealsByDate = useDietStore(s => s.mealsByDate)
   const goals = useDietStore(s => s.goals)
   const mealLibrary = useDietStore(s => s.mealLibrary)

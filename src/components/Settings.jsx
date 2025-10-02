@@ -30,7 +30,11 @@ export default function Settings() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `diet-tracker-backup-${new Date().toISOString().slice(0,10)}.json`
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    a.download = `diet-tracker-backup-${y}-${m}-${d}.json`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -90,7 +94,6 @@ export default function Settings() {
         <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="space-y-3">
             <h4 className="font-medium text-gray-900 dark:text-gray-100">雲端同步（Supabase）</h4>
-            <p className="text-sm text-gray-600 dark:text-gray-300">請先於 .env 設定 `VITE_SUPABASE_URL` 與 `VITE_SUPABASE_ANON_KEY`，並在資料庫建立表 `diet_backups(user_id text primary key, data jsonb, updated_at timestamptz)`。</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <label className="md:col-span-2">
                 <span className="block text-sm text-gray-700 dark:text-gray-300">使用者 ID（自訂識別碼）</span>

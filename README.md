@@ -2,7 +2,7 @@
 
 Modern, local-first diet tracking app with optional cloud backup. Built with React, Vite, Tailwind CSS, Zustand, and Supabase. Deployed on Vercel.
 
-— Live Demo: https://your-vercel-url.vercel.app (replace with your actual Vercel URL)
+— Live Demo:https://diet-tracker-fvmc49cxp-derek-chens-projects-de3f9b18.vercel.app (replace with your actual Vercel URL)
 
 ### Features
 - Daily overview with macro and calorie progress

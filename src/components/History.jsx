@@ -4,7 +4,11 @@ import { useForm } from 'react-hook-form'
 import { macrosToKcal } from '../utils/nutrition'
 
 export default function History() {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
+  const now = new Date()
+  const yyyy = now.getFullYear()
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
+  const [selectedDate, setSelectedDate] = useState(`${yyyy}-${mm}-${dd}`)
   const [viewMode, setViewMode] = useState('daily')
   
   const mealsByDate = useDietStore(s => s.mealsByDate)

@@ -25,7 +25,11 @@ export default function StatisticsPage() {
       start.setMonth(end.getMonth() - 3)
     }
     
-    return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) }
+    const fmt = (d) => {
+      const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`
+    }
+    return { start: fmt(start), end: fmt(end) }
   }, [timeRange])
 
   // 取得統計數據
@@ -34,7 +38,8 @@ export default function StatisticsPage() {
     const stats = []
     
     for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
-      const dateKey = d.toISOString().slice(0, 10)
+      const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
+      const dateKey = `${y}-${m}-${dd}`
       const meals = mealsByDate[dateKey] || []
       const totals = meals.reduce((acc, m) => ({
         protein: acc.protein + Number(m.protein || 0),

@@ -4,7 +4,11 @@ import { useDietStore } from '../stores/useDietStore'
 
 export default function WeightTracker() {
   const [newWeight, setNewWeight] = useState('')
-  const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 10))
+  const localToday = new Date()
+  const yyyy = localToday.getFullYear()
+  const mm = String(localToday.getMonth() + 1).padStart(2, '0')
+  const dd = String(localToday.getDate()).padStart(2, '0')
+  const [newDate, setNewDate] = useState(`${yyyy}-${mm}-${dd}`)
   
   const profile = useDietStore(s => s.profile)
   const weightHistory = useDietStore(s => s.weightHistory || [])
@@ -17,7 +21,11 @@ export default function WeightTracker() {
         weight: parseFloat(newWeight)
       })
       setNewWeight('')
-      setNewDate(new Date().toISOString().slice(0, 10))
+      const now = new Date()
+      const y = now.getFullYear()
+      const m = String(now.getMonth() + 1).padStart(2, '0')
+      const d = String(now.getDate()).padStart(2, '0')
+      setNewDate(`${y}-${m}-${d}`)
     }
   }
 

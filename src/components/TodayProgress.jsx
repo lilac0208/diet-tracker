@@ -40,7 +40,13 @@ const ProgressBar = ({ label, value, goal, unit, color = 'blue' }) => {
 }
 
 export default function TodayProgress() {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const today = useMemo(() => {
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${dd}`
+  }, [])
   const mealsRaw = useDietStore((s) => s.mealsByDate[today])
   const goals = useDietStore((s) => s.goals)
   const meals = mealsRaw ?? []

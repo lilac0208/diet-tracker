@@ -1,11 +1,19 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getSupabase } from '../utils/supabaseClient'
+import { calcBMR, calcTDEE } from '../utils/nutrition'
 
 // module-level timers for debounced push
 let pushTimer = null
 
-const todayKey = () => new Date().toISOString().slice(0, 10)
+// Local-date key in YYYY-MM-DD using local timezone (avoid UTC boundary issues)
+const formatLocalDate = (date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+const todayKey = () => formatLocalDate(new Date())
 
 export const useDietStore = create(persist((set, get) => ({
   profile: null,
@@ -48,10 +56,39 @@ export const useDietStore = create(persist((set, get) => ({
   },
 
   mealsByDate: {},
+  // 每日期總計快取，結構：{ [YYYY-MM-DD]: { protein, fat, carb, kcal } }
+  mealsTotalsByDate: {},
+
+  // 內部：計算單日總計
+  _computeTotals: (list) => list.reduce((acc, m) => ({
+    protein: acc.protein + Number(m.protein || 0),
+    fat: acc.fat + Number(m.fat || 0),
+    carb: acc.carb + Number(m.carb || 0),
+    kcal: acc.kcal + Number(m.kcal || 0),
+  }), { protein: 0, fat: 0, carb: 0, kcal: 0 }),
+
+  // 內部：重算某日快取
+  _recalcDateTotals: (dateKey) => {
+    const list = get().mealsByDate[dateKey] || []
+    const totals = get()._computeTotals(list)
+    set({ mealsTotalsByDate: { ...get().mealsTotalsByDate, [dateKey]: totals } })
+  },
+
+  // 內部：重算全部快取（匯入/大量異動時使用）
+  _recalcAllTotals: () => {
+    const byDate = get().mealsByDate
+    const compute = get()._computeTotals
+    const totals = {}
+    for (const key of Object.keys(byDate)) {
+      totals[key] = compute(byDate[key] || [])
+    }
+    set({ mealsTotalsByDate: totals })
+  },
   addMeal: (meal) => {
     const d = todayKey()
     const list = get().mealsByDate[d] || []
     set({ mealsByDate: { ...get().mealsByDate, [d]: [...list, meal] } })
+    get()._recalcDateTotals(d)
     get().schedulePush()
   },
   // 依指定日期新增餐點（YYYY-MM-DD）
@@ -59,6 +96,7 @@ export const useDietStore = create(persist((set, get) => ({
     const key = date || todayKey()
     const list = get().mealsByDate[key] || []
     set({ mealsByDate: { ...get().mealsByDate, [key]: [...list, meal] } })
+    get()._recalcDateTotals(key)
     get().schedulePush()
   },
 
@@ -74,6 +112,32 @@ export const useDietStore = create(persist((set, get) => ({
     } else {
       set({ weightHistory: [...history, record] })
     }
+
+    // 同步更新個人資料中的體重，並在可計算時更新 BMR/TDEE
+    const currentProfile = get().profile
+    if (currentProfile) {
+      const updatedProfile = { ...currentProfile, weight: Number(record.weight) }
+      try {
+        const canCalc =
+          updatedProfile.gender &&
+          updatedProfile.height &&
+          updatedProfile.weight &&
+          updatedProfile.age &&
+          updatedProfile.activityLevel
+        if (canCalc) {
+          const bmr = calcBMR({
+            gender: updatedProfile.gender,
+            weight: updatedProfile.weight,
+            height: updatedProfile.height,
+            age: updatedProfile.age,
+          })
+          const tdee = calcTDEE(bmr, updatedProfile.activityLevel)
+          updatedProfile.bmr = bmr
+          updatedProfile.tdee = tdee
+        }
+      } catch {}
+      set({ profile: updatedProfile })
+    }
     get().schedulePush()
   },
 
@@ -82,34 +146,23 @@ export const useDietStore = create(persist((set, get) => ({
     const list = get().mealsByDate[date] || []
     const newList = list.filter((_, i) => i !== index)
     set({ mealsByDate: { ...get().mealsByDate, [date]: newList } })
+    get()._recalcDateTotals(date)
     get().schedulePush()
   },
 
   todayTotals: () => {
     const d = todayKey()
-    const list = get().mealsByDate[d] || []
-    return list.reduce((acc, m) => ({
-      protein: acc.protein + Number(m.protein || 0),
-      fat: acc.fat + Number(m.fat || 0),
-      carb: acc.carb + Number(m.carb || 0),
-      kcal: acc.kcal + Number(m.kcal || 0),
-    }), { protein: 0, fat: 0, carb: 0, kcal: 0 })
+    return get().mealsTotalsByDate[d] || { protein: 0, fat: 0, carb: 0, kcal: 0 }
   },
 
   getMealsByDate: (date) => get().mealsByDate[date] || [],
 
   getDateRangeStats: (startDate, endDate) => {
-    const mealsByDate = get().mealsByDate
+    const totalsMap = get().mealsTotalsByDate
     const stats = []
     for (let d = new Date(startDate); d <= new Date(endDate); d.setDate(d.getDate() + 1)) {
-      const dateKey = d.toISOString().slice(0, 10)
-      const meals = mealsByDate[dateKey] || []
-      const totals = meals.reduce((acc, m) => ({
-        protein: acc.protein + Number(m.protein || 0),
-        fat: acc.fat + Number(m.fat || 0),
-        carb: acc.carb + Number(m.carb || 0),
-        kcal: acc.kcal + Number(m.kcal || 0),
-      }), { protein: 0, fat: 0, carb: 0, kcal: 0 })
+      const dateKey = formatLocalDate(d)
+      const totals = totalsMap[dateKey] || { protein: 0, fat: 0, carb: 0, kcal: 0 }
       stats.push({ date: dateKey, ...totals })
     }
     return stats
@@ -145,6 +198,7 @@ export const useDietStore = create(persist((set, get) => ({
         mealsByDate: parsed.mealsByDate ?? {},
         weightHistory: Array.isArray(parsed.weightHistory) ? parsed.weightHistory : [],
       })
+      get()._recalcAllTotals()
       get().schedulePush()
       return { ok: true }
     } catch (e) {
@@ -225,6 +279,7 @@ export const useDietStore = create(persist((set, get) => ({
       mealLibrary: [],
       mealsByDate: {},
       weightHistory: [],
+      mealsTotalsByDate: {},
     })
     try { localStorage.removeItem('diet-tracker') } catch {}
   }
